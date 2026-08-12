@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   UserProfile,
   Booking,
@@ -10,6 +10,7 @@ import {
   ExtraAddon,
   BookingStatus,
 } from '@/lib/types';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 
 export const INITIAL_SERVICES: ServicePackage[] = [
   {
@@ -167,21 +168,21 @@ const INITIAL_AVAILABILITY: CleanerAvailability[] = [
   {
     cleanerId: 'u-clean-1',
     cleanerName: 'Elena Rostova',
-    dayOfWeek: 1, // Mon
+    dayOfWeek: 1,
     timeSlots: ['08:00 AM - 10:00 AM', '10:30 AM - 12:30 PM', '01:00 PM - 03:00 PM'],
     isAvailable: true,
   },
   {
     cleanerId: 'u-clean-1',
     cleanerName: 'Elena Rostova',
-    dayOfWeek: 2, // Tue
+    dayOfWeek: 2,
     timeSlots: ['08:00 AM - 10:00 AM', '10:30 AM - 12:30 PM'],
     isAvailable: true,
   },
   {
     cleanerId: 'u-clean-2',
     cleanerName: 'Marcus Vance',
-    dayOfWeek: 1, // Mon
+    dayOfWeek: 1,
     timeSlots: ['10:30 AM - 12:30 PM', '01:00 PM - 03:00 PM', '03:30 PM - 05:30 PM'],
     isAvailable: true,
   },
@@ -201,20 +202,60 @@ interface AppContextType {
   assignCleanerToBooking: (bookingId: string, cleanerId: string) => { success: boolean; conflictReason?: string };
   toggleCleanerSlotAvailability: (cleanerId: string, dayOfWeek: number, slot: string) => void;
   checkSlotConflict: (cleanerId: string, date: string, timeSlot: string, currentBookingId?: string) => string | null;
+  isBackendConnected: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserProfile>(MOCK_USERS[0]); // Default Customer
+  const [currentUser, setCurrentUser] = useState<UserProfile>(MOCK_USERS[0]);
   const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
   const [cleaners] = useState<UserProfile[]>(MOCK_USERS.filter((u) => u.role === 'cleaner'));
   const [availability, setAvailability] = useState<CleanerAvailability[]>(INITIAL_AVAILABILITY);
   const [conflicts, setConflicts] = useState<ConflictAlert[]>([]);
 
-  // Function to check if assigning a cleaner creates a double-booking or unavailability conflict
+  // Fetch initial data from Supabase if configured
+  useEffect(() => {
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) return;
+
+    const fetchSupabaseData = async () => {
+      try {
+        const { data: dbBookings, error } = await client.from('bookings').select('*').order('created_at', { ascending: false });
+        if (!error && dbBookings && dbBookings.length > 0) {
+          const mappedBookings: Booking[] = dbBookings.map((b: any) => ({
+            id: b.id,
+            customerId: b.customer_id,
+            customerName: b.customer_name,
+            customerPhone: b.customer_phone,
+            address: b.address,
+            serviceId: b.service_id,
+            serviceName: b.service_name,
+            bedrooms: b.bedrooms,
+            bathrooms: b.bathrooms,
+            addons: b.addons || [],
+            date: b.date,
+            timeSlot: b.time_slot,
+            totalAmount: Number(b.total_amount),
+            status: b.status as BookingStatus,
+            cleanerId: b.cleaner_id || undefined,
+            cleanerName: b.cleaner_name || undefined,
+            notes: b.notes || undefined,
+            proofNote: b.proof_note || undefined,
+            proofTime: b.proof_time || undefined,
+            createdAt: b.created_at,
+          }));
+          setBookings(mappedBookings);
+        }
+      } catch (err) {
+        console.warn('Supabase fetch notice:', err);
+      }
+    };
+
+    fetchSupabaseData();
+  }, []);
+
   const checkSlotConflict = (cleanerId: string, date: string, timeSlot: string, currentBookingId?: string): string | null => {
-    // 1. Check double booking for the cleaner at the given date and timeSlot
     const existing = bookings.find(
       (b) => b.cleanerId === cleanerId && b.date === date && b.timeSlot === timeSlot && b.status !== 'cancelled' && b.id !== currentBookingId
     );
@@ -226,13 +267,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const createBooking = (bookingData: Omit<Booking, 'id' | 'createdAt' | 'status'>): Booking => {
     const newId = `BK-${Math.floor(1000 + Math.random() * 9000)}`;
-    
-    // Auto-assign available cleaner if possible
+
     let assignedCleaner: UserProfile | undefined = undefined;
     if (bookingData.cleanerId) {
       assignedCleaner = cleaners.find((c) => c.id === bookingData.cleanerId);
     } else {
-      // Find first cleaner without conflict
       assignedCleaner = cleaners.find((c) => !checkSlotConflict(c.id, bookingData.date, bookingData.timeSlot));
     }
 
@@ -247,7 +286,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setBookings((prev) => [newBooking, ...prev]);
 
-    // Check if auto-assigned created any alert
+    // Push to Supabase if configured
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      client.from('bookings').insert([{
+        id: newBooking.id,
+        customer_id: newBooking.customerId,
+        customer_name: newBooking.customerName,
+        customer_phone: newBooking.customerPhone,
+        address: newBooking.address,
+        service_id: newBooking.serviceId,
+        service_name: newBooking.serviceName,
+        bedrooms: newBooking.bedrooms,
+        bathrooms: newBooking.bathrooms,
+        addons: newBooking.addons,
+        date: newBooking.date,
+        time_slot: newBooking.timeSlot,
+        total_amount: newBooking.totalAmount,
+        status: newBooking.status,
+        cleaner_id: newBooking.cleanerId,
+        cleaner_name: newBooking.cleanerName,
+        notes: newBooking.notes,
+      }]).then(({ error }) => {
+        if (error) console.error('Error creating booking in Supabase:', error);
+      });
+    }
+
     if (!assignedCleaner) {
       setConflicts((prev) => [
         ...prev,
@@ -266,6 +330,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateBookingStatus = (bookingId: string, status: BookingStatus, proofNote?: string) => {
+    const proofTime = proofNote ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined;
+
     setBookings((prev) =>
       prev.map((b) => {
         if (b.id === bookingId) {
@@ -273,12 +339,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...b,
             status,
             proofNote: proofNote || b.proofNote,
-            proofTime: proofNote ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : b.proofTime,
+            proofTime: proofTime || b.proofTime,
           };
         }
         return b;
       })
     );
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      client.from('bookings').update({
+        status,
+        proof_note: proofNote,
+        proof_time: proofTime,
+      }).eq('id', bookingId).then(({ error }) => {
+        if (error) console.error('Error updating status in Supabase:', error);
+      });
+    }
   };
 
   const assignCleanerToBooking = (bookingId: string, cleanerId: string) => {
@@ -287,7 +364,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const conflict = checkSlotConflict(cleanerId, booking.date, booking.timeSlot, bookingId);
     if (conflict) {
-      // Record conflict in state for admin visibility
       setConflicts((prev) => [
         ...prev,
         {
@@ -303,6 +379,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const cleanerObj = cleaners.find((c) => c.id === cleanerId);
+    const updatedStatus = booking.status === 'pending' ? 'assigned' : booking.status;
 
     setBookings((prev) =>
       prev.map((b) => {
@@ -311,14 +388,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...b,
             cleanerId,
             cleanerName: cleanerObj?.name || 'Assigned Cleaner',
-            status: b.status === 'pending' ? 'assigned' : b.status,
+            status: updatedStatus,
           };
         }
         return b;
       })
     );
 
-    // Remove any unresolved conflicts for this booking
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      client.from('bookings').update({
+        cleaner_id: cleanerId,
+        cleaner_name: cleanerObj?.name || 'Assigned Cleaner',
+        status: updatedStatus,
+      }).eq('id', bookingId).then(({ error }) => {
+        if (error) console.error('Error assigning cleaner in Supabase:', error);
+      });
+    }
+
     setConflicts((prev) => prev.filter((c) => c.bookingId !== bookingId));
 
     return { success: true };
@@ -367,6 +454,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         assignCleanerToBooking,
         toggleCleanerSlotAvailability,
         checkSlotConflict,
+        isBackendConnected: isSupabaseConfigured,
       }}
     >
       {children}

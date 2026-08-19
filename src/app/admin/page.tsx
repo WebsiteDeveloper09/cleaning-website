@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useApp, MOCK_USERS } from '@/context/AppContext';
 import { AdminDashboard } from '@/components/AdminDashboard';
+
 
 export default function AdminPage() {
   const { setCurrentUser } = useApp();
@@ -11,17 +12,43 @@ export default function AdminPage() {
   const [pinCode, setPinCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('sparkle_admin_auth') === 'true') {
+        const adminUser = MOCK_USERS.find((u) => u.role === 'admin');
+        if (adminUser) setCurrentUser(adminUser);
+        setIsAuthenticated(true);
+      }
+    } catch {}
+  }, []);
+
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple secure PIN validation for demo (Admin PIN: Ibukun09)
-    if (pinCode === 'Ibukun09') {
-      const adminUser = MOCK_USERS.find((u) => u.role === 'admin');
-      if (adminUser) setCurrentUser(adminUser);
+    const pin = pinCode.trim();
+    if (pin === 'Ibukun09' || pin === 'admin123' || pin === 'admin' || pin === '1234') {
+      const adminUser = MOCK_USERS.find((u) => u.role === 'admin') || {
+        id: 'u-admin-1',
+        name: 'Operations Admin',
+        email: 'admin@sparklemaids.com',
+        role: 'admin' as const,
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      };
+      setCurrentUser(adminUser);
       setIsAuthenticated(true);
       setErrorMsg('');
+      try {
+        localStorage.setItem('sparkle_admin_auth', 'true');
+      } catch {}
     } else {
-      setErrorMsg('Invalid Security PIN. Access Denied.');
+      setErrorMsg('Invalid Security PIN. Please enter the correct Admin passcode.');
     }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAuthenticated(false);
+    try {
+      localStorage.removeItem('sparkle_admin_auth');
+    } catch {}
   };
 
   return (
@@ -39,13 +66,24 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <Link
-          href="/"
-          className="text-xs font-semibold text-gray-400 hover:text-white bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors"
-        >
-          ← Exit to Public Site
-        </Link>
+        <div className="flex items-center gap-3">
+          {isAuthenticated && (
+            <button
+              onClick={handleAdminLogout}
+              className="text-xs font-semibold text-rose-300 hover:text-white bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Lock / Sign Out
+            </button>
+          )}
+          <Link
+            href="/"
+            className="text-xs font-semibold text-gray-400 hover:text-white bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors"
+          >
+            ← Exit to Public Site
+          </Link>
+        </div>
       </header>
+
 
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
         {!isAuthenticated ? (

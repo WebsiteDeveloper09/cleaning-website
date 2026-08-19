@@ -3,21 +3,37 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   UserProfile,
+  StoredCustomer,
   Booking,
   CleanerAvailability,
   ConflictAlert,
   ServicePackage,
   ExtraAddon,
   BookingStatus,
+  PAYMENT_ACCOUNT_DETAILS,
 } from '@/lib/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+
+// Simple deterministic hash for demo password storage
+const simpleHash = (str: string): string => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash;
+  }
+  return hash.toString(16);
+};
+
+const LS_CUSTOMERS_KEY = 'sparkle_customers';
+const LS_SESSION_KEY  = 'sparkle_session';
 
 export const INITIAL_SERVICES: ServicePackage[] = [
   {
     id: 'deep-clean',
     name: 'Deep Home Clean',
     description: 'Thorough top-to-bottom scrub including baseboards, high dusting, and detail sanitization.',
-    basePrice: 120,
+    basePrice: 45000,
     iconName: 'Sparkles',
     estimatedHours: 4,
   },
@@ -25,7 +41,7 @@ export const INITIAL_SERVICES: ServicePackage[] = [
     id: 'standard-clean',
     name: 'Standard Routine Clean',
     description: 'Essential recurring upkeep for kitchens, bathrooms, living areas, and bed making.',
-    basePrice: 75,
+    basePrice: 25000,
     iconName: 'Home',
     estimatedHours: 2.5,
   },
@@ -33,7 +49,7 @@ export const INITIAL_SERVICES: ServicePackage[] = [
     id: 'move-in-out',
     name: 'Move In / Move Out',
     description: 'Deep spotless reset for vacant properties. Guaranteed checklist compliance for landlords.',
-    basePrice: 160,
+    basePrice: 65000,
     iconName: 'Truck',
     estimatedHours: 5,
   },
@@ -41,18 +57,18 @@ export const INITIAL_SERVICES: ServicePackage[] = [
     id: 'post-construction',
     name: 'Post-Renovation Clean',
     description: 'Heavy duty dust removal, adhesive scrape, and shine polish for freshly remodeled homes.',
-    basePrice: 200,
+    basePrice: 90000,
     iconName: 'Wrench',
     estimatedHours: 6,
   },
 ];
 
 export const INITIAL_ADDONS: ExtraAddon[] = [
-  { id: 'fridge', name: 'Inside Fridge', price: 25, iconName: 'Refrigerator' },
-  { id: 'oven', name: 'Inside Oven', price: 30, iconName: 'Flame' },
-  { id: 'windows', name: 'Interior Windows', price: 35, iconName: 'Sun' },
-  { id: 'laundry', name: 'Wash & Fold Laundry', price: 25, iconName: 'Shirt' },
-  { id: 'balcony', name: 'Balcony / Patio Sweep', price: 20, iconName: 'Wind' },
+  { id: 'fridge', name: 'Inside Fridge', price: 6000, iconName: 'Refrigerator' },
+  { id: 'oven', name: 'Inside Oven', price: 7000, iconName: 'Flame' },
+  { id: 'windows', name: 'Interior Windows', price: 8000, iconName: 'Sun' },
+  { id: 'laundry', name: 'Wash & Fold Laundry', price: 8000, iconName: 'Shirt' },
+  { id: 'balcony', name: 'Balcony / Patio Sweep', price: 5000, iconName: 'Wind' },
 ];
 
 export const MOCK_USERS: UserProfile[] = [
@@ -62,25 +78,25 @@ export const MOCK_USERS: UserProfile[] = [
     email: 'sarah.j@example.com',
     role: 'customer',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    phone: '+1 (555) 234-5678',
+    phone: '+234 803 123 4567',
   },
   {
     id: 'u-clean-1',
-    name: 'Elena Rostova',
-    email: 'elena.cleaner@example.com',
+    name: 'Amina Adebayo',
+    email: 'amina.cleaner@example.com',
     role: 'cleaner',
-    avatar: '/elena_cleaner.png',
-    phone: '+1 (555) 876-5432',
+    avatar: '/amina_cleaner.png',
+    phone: '+234 812 345 6789',
     rating: 4.9,
     completedJobsCount: 142,
   },
   {
     id: 'u-clean-2',
-    name: 'Marcus Vance',
-    email: 'marcus.v@example.com',
+    name: 'Emeka Nnamdi',
+    email: 'emeka.n@example.com',
     role: 'cleaner',
-    avatar: '/marcus_cleaner.png',
-    phone: '+1 (555) 345-6789',
+    avatar: '/emeka_cleaner.png',
+    phone: '+234 809 876 5432',
     rating: 4.8,
     completedJobsCount: 98,
   },
@@ -105,8 +121,8 @@ const INITIAL_BOOKINGS: Booking[] = [
     id: 'BK-1001',
     customerId: 'u-cust-1',
     customerName: 'Sarah Jenkins',
-    customerPhone: '+1 (555) 234-5678',
-    address: '742 Evergreen Terrace, Suite 4B',
+    customerPhone: '+234 803 123 4567',
+    address: '742 Evergreen Terrace, Lekki Phase 1',
     serviceId: 'deep-clean',
     serviceName: 'Deep Home Clean',
     bedrooms: 2,
@@ -114,19 +130,23 @@ const INITIAL_BOOKINGS: Booking[] = [
     addons: ['fridge', 'windows'],
     date: new Date().toISOString().split('T')[0],
     timeSlot: '08:00 AM - 10:00 AM',
-    totalAmount: 195,
+    totalAmount: 59000,
     status: 'in_progress',
     cleanerId: 'u-clean-1',
-    cleanerName: 'Elena Rostova',
-    notes: 'Please watch out for friendly cat (Milo). Key is under the plant pot.',
+    cleanerName: 'Amina Adebayo',
+    paymentMethod: 'Bank Transfer (OPAY)',
+    paymentAccount: `${PAYMENT_ACCOUNT_DETAILS.bankName} - ${PAYMENT_ACCOUNT_DETAILS.accountNumber} (${PAYMENT_ACCOUNT_DETAILS.accountName})`,
+    paymentReference: 'OPAY-TRX-83921',
+    paymentStatus: 'verified',
+    notes: 'Please watch out for friendly cat (Milo). Key is with security at gate.',
     createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
   },
   {
     id: 'BK-1002',
     customerId: 'u-cust-1',
     customerName: 'Sarah Jenkins',
-    customerPhone: '+1 (555) 234-5678',
-    address: '742 Evergreen Terrace, Suite 4B',
+    customerPhone: '+234 803 123 4567',
+    address: '742 Evergreen Terrace, Lekki Phase 1',
     serviceId: 'standard-clean',
     serviceName: 'Standard Routine Clean',
     bedrooms: 1,
@@ -134,10 +154,13 @@ const INITIAL_BOOKINGS: Booking[] = [
     addons: ['laundry'],
     date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     timeSlot: '10:30 AM - 12:30 PM',
-    totalAmount: 100,
+    totalAmount: 33000,
     status: 'assigned',
     cleanerId: 'u-clean-2',
-    cleanerName: 'Marcus Vance',
+    cleanerName: 'Emeka Nnamdi',
+    paymentMethod: 'Bank Transfer (OPAY)',
+    paymentAccount: `${PAYMENT_ACCOUNT_DETAILS.bankName} - ${PAYMENT_ACCOUNT_DETAILS.accountNumber} (${PAYMENT_ACCOUNT_DETAILS.accountName})`,
+    paymentStatus: 'pending',
     notes: 'Standard upkeep clean.',
     createdAt: new Date().toISOString(),
   },
@@ -145,8 +168,8 @@ const INITIAL_BOOKINGS: Booking[] = [
     id: 'BK-1000',
     customerId: 'u-cust-1',
     customerName: 'Sarah Jenkins',
-    customerPhone: '+1 (555) 234-5678',
-    address: '742 Evergreen Terrace, Suite 4B',
+    customerPhone: '+234 803 123 4567',
+    address: '742 Evergreen Terrace, Lekki Phase 1',
     serviceId: 'move-in-out',
     serviceName: 'Move In / Move Out',
     bedrooms: 3,
@@ -154,34 +177,40 @@ const INITIAL_BOOKINGS: Booking[] = [
     addons: ['fridge', 'oven', 'windows'],
     date: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0],
     timeSlot: '01:00 PM - 03:00 PM',
-    totalAmount: 265,
+    totalAmount: 86000,
     status: 'completed',
     cleanerId: 'u-clean-1',
-    cleanerName: 'Elena Rostova',
-    proofNote: 'Property completely spotless. Keys left on counter.',
+    cleanerName: 'Amina Adebayo',
+    paymentMethod: 'Bank Transfer (OPAY)',
+    paymentAccount: `${PAYMENT_ACCOUNT_DETAILS.bankName} - ${PAYMENT_ACCOUNT_DETAILS.accountNumber} (${PAYMENT_ACCOUNT_DETAILS.accountName})`,
+    paymentReference: 'OPAY-TRX-55102',
+    paymentStatus: 'verified',
+    proofNote: 'Property completely spotless. Keys returned to facility manager.',
     proofTime: '5 days ago',
     createdAt: new Date(Date.now() - 86400000 * 6).toISOString(),
   },
 ];
 
+
 const INITIAL_AVAILABILITY: CleanerAvailability[] = [
+
   {
     cleanerId: 'u-clean-1',
-    cleanerName: 'Elena Rostova',
+    cleanerName: 'Amina Adebayo',
     dayOfWeek: 1,
     timeSlots: ['08:00 AM - 10:00 AM', '10:30 AM - 12:30 PM', '01:00 PM - 03:00 PM'],
     isAvailable: true,
   },
   {
     cleanerId: 'u-clean-1',
-    cleanerName: 'Elena Rostova',
+    cleanerName: 'Amina Adebayo',
     dayOfWeek: 2,
     timeSlots: ['08:00 AM - 10:00 AM', '10:30 AM - 12:30 PM'],
     isAvailable: true,
   },
   {
     cleanerId: 'u-clean-2',
-    cleanerName: 'Marcus Vance',
+    cleanerName: 'Emeka Nnamdi',
     dayOfWeek: 1,
     timeSlots: ['10:30 AM - 12:30 PM', '01:00 PM - 03:00 PM', '03:30 PM - 05:30 PM'],
     isAvailable: true,
@@ -199,20 +228,139 @@ interface AppContextType {
   addons: ExtraAddon[];
   createBooking: (bookingData: Omit<Booking, 'id' | 'createdAt' | 'status'>) => Booking;
   updateBookingStatus: (bookingId: string, status: BookingStatus, proofNote?: string) => void;
+  updatePaymentStatus: (bookingId: string, paymentStatus: 'pending' | 'verified' | 'paid', reference?: string) => void;
   assignCleanerToBooking: (bookingId: string, cleanerId: string) => { success: boolean; conflictReason?: string };
   toggleCleanerSlotAvailability: (cleanerId: string, dayOfWeek: number, slot: string) => void;
   checkSlotConflict: (cleanerId: string, date: string, timeSlot: string, currentBookingId?: string) => string | null;
   isBackendConnected: boolean;
+  // Auth
+  isCustomerLoggedIn: boolean;
+  registeredCustomers: StoredCustomer[];
+  customerLogin: (email: string, password: string) => { success: boolean; error?: string };
+  customerLogout: () => void;
+  customerRegister: (name: string, email: string, password: string, phone: string) => { success: boolean; error?: string };
 }
+
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserProfile>(MOCK_USERS[0]);
   const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
   const [cleaners] = useState<UserProfile[]>(MOCK_USERS.filter((u) => u.role === 'cleaner'));
   const [availability, setAvailability] = useState<CleanerAvailability[]>(INITIAL_AVAILABILITY);
   const [conflicts, setConflicts] = useState<ConflictAlert[]>([]);
+
+  // ─── Auth State ───────────────────────────────────────────────────────────
+  const loadCustomers = (): StoredCustomer[] => {
+    if (typeof window === 'undefined') return [];
+    try { return JSON.parse(localStorage.getItem(LS_CUSTOMERS_KEY) || '[]'); } catch { return []; }
+  };
+
+  const saveCustomers = (list: StoredCustomer[]) => {
+    localStorage.setItem(LS_CUSTOMERS_KEY, JSON.stringify(list));
+  };
+
+  const loadSession = (): UserProfile | null => {
+    if (typeof window === 'undefined') return null;
+    try { return JSON.parse(localStorage.getItem(LS_SESSION_KEY) || 'null'); } catch { return null; }
+  };
+
+  // Default non-customer user for cleaner/admin role switching
+  const defaultStaffUser = MOCK_USERS[0];
+  const [currentUser, setCurrentUserState] = useState<UserProfile>(defaultStaffUser);
+  const [isCustomerLoggedIn, setIsCustomerLoggedIn] = useState<boolean>(false);
+
+  const [registeredCustomers, setRegisteredCustomers] = useState<StoredCustomer[]>(() => {
+    const list = loadCustomers();
+    if (list.length === 0) {
+      const initial: StoredCustomer[] = [
+        {
+          id: 'u-cust-1',
+          name: 'Sarah Jenkins',
+          email: 'sarah.j@example.com',
+          phone: '+1 (555) 234-5678',
+          passwordHash: simpleHash('password123'),
+          avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+          createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
+        },
+      ];
+      return initial;
+    }
+    return list;
+  });
+
+  // On mount: restore session from localStorage
+  useEffect(() => {
+    const session = loadSession();
+    if (session) {
+      setCurrentUserState(session);
+      setIsCustomerLoggedIn(true);
+    }
+  }, []);
+
+  const setCurrentUser = (user: UserProfile) => {
+    setCurrentUserState(user);
+  };
+
+  const customerLogin = (email: string, password: string): { success: boolean; error?: string } => {
+    const customers = loadCustomers();
+    const found = customers.find(
+      (c) => c.email.toLowerCase() === email.toLowerCase() && c.passwordHash === simpleHash(password)
+    );
+    if (!found) return { success: false, error: 'Invalid email or password.' };
+    const userProfile: UserProfile = {
+      id: found.id,
+      name: found.name,
+      email: found.email,
+      role: 'customer',
+      avatar: found.avatar,
+      phone: found.phone,
+    };
+    setCurrentUserState(userProfile);
+    setIsCustomerLoggedIn(true);
+    localStorage.setItem(LS_SESSION_KEY, JSON.stringify(userProfile));
+    return { success: true };
+  };
+
+  const customerLogout = () => {
+    setCurrentUserState(defaultStaffUser);
+    setIsCustomerLoggedIn(false);
+    localStorage.removeItem(LS_SESSION_KEY);
+  };
+
+  const customerRegister = (
+    name: string, email: string, password: string, phone: string
+  ): { success: boolean; error?: string } => {
+    const customers = loadCustomers();
+    if (customers.find((c) => c.email.toLowerCase() === email.toLowerCase())) {
+      return { success: false, error: 'An account with this email already exists.' };
+    }
+    const newCustomer: StoredCustomer = {
+      id: `cust-${Date.now()}`,
+      name,
+      email,
+      passwordHash: simpleHash(password),
+      phone,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff&bold=true&size=150`,
+      createdAt: new Date().toISOString(),
+    };
+    const updatedList = [...customers, newCustomer];
+    saveCustomers(updatedList);
+    setRegisteredCustomers(updatedList);
+    const userProfile: UserProfile = {
+      id: newCustomer.id,
+      name: newCustomer.name,
+      email: newCustomer.email,
+      role: 'customer',
+      avatar: newCustomer.avatar,
+      phone: newCustomer.phone,
+    };
+    setCurrentUserState(userProfile);
+    setIsCustomerLoggedIn(true);
+    localStorage.setItem(LS_SESSION_KEY, JSON.stringify(userProfile));
+    return { success: true };
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Fetch initial data from Supabase if configured
   useEffect(() => {
@@ -281,6 +429,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: assignedCleaner ? 'assigned' : 'pending',
       cleanerId: assignedCleaner?.id,
       cleanerName: assignedCleaner?.name,
+      paymentMethod: bookingData.paymentMethod || 'Bank Transfer (OPAY)',
+      paymentAccount: `${PAYMENT_ACCOUNT_DETAILS.bankName} - ${PAYMENT_ACCOUNT_DETAILS.accountNumber} (${PAYMENT_ACCOUNT_DETAILS.accountName})`,
+      paymentStatus: bookingData.paymentStatus || 'pending',
+      paymentReference: bookingData.paymentReference || undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -307,6 +459,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cleaner_id: newBooking.cleanerId,
         cleaner_name: newBooking.cleanerName,
         notes: newBooking.notes,
+        payment_method: newBooking.paymentMethod,
+        payment_account: newBooking.paymentAccount,
+        payment_reference: newBooking.paymentReference,
+        payment_status: newBooking.paymentStatus,
       }]).then(({ error }) => {
         if (error) console.error('Error creating booking in Supabase:', error);
       });
@@ -354,6 +510,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         proof_time: proofTime,
       }).eq('id', bookingId).then(({ error }) => {
         if (error) console.error('Error updating status in Supabase:', error);
+      });
+    }
+  };
+
+  const updatePaymentStatus = (bookingId: string, paymentStatus: 'pending' | 'verified' | 'paid', reference?: string) => {
+    setBookings((prev) =>
+      prev.map((b) => {
+        if (b.id === bookingId) {
+          return {
+            ...b,
+            paymentStatus,
+            paymentReference: reference || b.paymentReference,
+          };
+        }
+        return b;
+      })
+    );
+
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      client.from('bookings').update({
+        payment_status: paymentStatus,
+        payment_reference: reference,
+      }).eq('id', bookingId).then(({ error }) => {
+        if (error) console.error('Error updating payment status in Supabase:', error);
       });
     }
   };
@@ -451,10 +632,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addons: INITIAL_ADDONS,
         createBooking,
         updateBookingStatus,
+        updatePaymentStatus,
         assignCleanerToBooking,
         toggleCleanerSlotAvailability,
         checkSlotConflict,
         isBackendConnected: isSupabaseConfigured,
+        isCustomerLoggedIn,
+        registeredCustomers,
+        customerLogin,
+        customerLogout,
+        customerRegister,
       }}
     >
       {children}

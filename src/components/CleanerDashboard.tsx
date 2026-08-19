@@ -191,8 +191,9 @@ export const CleanerDashboard: React.FC = () => {
                     <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
                       Status: {b.status.replace('_', ' ')}
                     </span>
-                    <span className="text-lg font-black text-emerald-400">${b.totalAmount}</span>
+                    <span className="text-lg font-black text-emerald-400">₦{b.totalAmount?.toLocaleString()}</span>
                   </div>
+
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs my-3">

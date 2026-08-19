@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useApp, TIME_SLOTS } from '@/context/AppContext';
+import { PAYMENT_ACCOUNT_DETAILS } from '@/lib/types';
 
 interface BookingWizardProps {
   isOpen: boolean;
@@ -21,23 +22,25 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
     new Date(Date.now() + 86400000).toISOString().split('T')[0]
   );
   const [timeSlot, setTimeSlot] = useState<string>(TIME_SLOTS[0]);
-  const [address, setAddress] = useState<string>('123 Maple Street, Apt 4B');
-  const [phone, setPhone] = useState<string>(currentUser.phone || '+1 (555) 019-2831');
+  const [address, setAddress] = useState<string>('Plot 14, Admiralty Way, Lekki Phase 1, Lagos');
+  const [phone, setPhone] = useState<string>(currentUser.phone || '+234 803 123 4567');
   const [notes, setNotes] = useState<string>('');
   const [selectedCleanerId, setSelectedCleanerId] = useState<string>('');
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [paymentReference, setPaymentReference] = useState<string>('');
+  const [copiedAccount, setCopiedAccount] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
   const currentService = services.find((s) => s.id === selectedServiceId) || services[0];
 
   // Price Calculation Logic
-  const roomCost = (bedrooms - 1) * 20 + (bathrooms - 1) * 15;
+  const roomCost = (bedrooms - 1) * 5000 + (bathrooms - 1) * 4000;
   const addonCost = selectedAddons.reduce((sum, addonId) => {
     const item = addons.find((a) => a.id === addonId);
     return sum + (item ? item.price : 0);
   }, 0);
-  const totalAmount = Math.max(currentService.basePrice + roomCost + addonCost, 50);
+  const totalAmount = Math.max(currentService.basePrice + roomCost + addonCost, 20000);
 
   const toggleAddon = (addonId: string) => {
     setSelectedAddons((prev) =>
@@ -80,6 +83,10 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
       totalAmount,
       cleanerId: selectedCleanerId || undefined,
       notes,
+      paymentMethod: 'Bank Transfer (OPAY)',
+      paymentAccount: `${PAYMENT_ACCOUNT_DETAILS.bankName} - ${PAYMENT_ACCOUNT_DETAILS.accountNumber} (${PAYMENT_ACCOUNT_DETAILS.accountName})`,
+      paymentReference: paymentReference.trim() || undefined,
+      paymentStatus: 'pending',
     });
 
     onSuccess(newBooking.id);
@@ -146,7 +153,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
                     >
                       <div className="flex justify-between items-start mb-2">
                         <span className="font-bold text-white text-base">{srv.name}</span>
-                        <span className="text-emerald-400 font-extrabold text-lg">${srv.basePrice}</span>
+                        <span className="text-emerald-400 font-extrabold text-lg">₦{srv.basePrice.toLocaleString()}</span>
                       </div>
                       <p className="text-xs text-gray-400 leading-relaxed mb-3">{srv.description}</p>
                       <div className="flex items-center gap-2 text-[11px] text-gray-500">
@@ -170,7 +177,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="text-sm font-bold text-white">Bedrooms</label>
-                    <p className="text-xs text-gray-400">+$20 per extra room</p>
+                    <p className="text-xs text-gray-400">+₦5,000 per extra room</p>
                   </div>
                   <div className="flex items-center gap-3 bg-gray-800 p-1.5 rounded-lg border border-gray-700">
                     <button
@@ -194,7 +201,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="text-sm font-bold text-white">Bathrooms</label>
-                    <p className="text-xs text-gray-400">+$15 per extra bath</p>
+                    <p className="text-xs text-gray-400">+₦4,000 per extra bath</p>
                   </div>
                   <div className="flex items-center gap-3 bg-gray-800 p-1.5 rounded-lg border border-gray-700">
                     <button
@@ -234,7 +241,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
                       >
                         <div className="flex justify-between items-center mb-1">
                           <span className="text-xs font-semibold">{ad.name}</span>
-                          <span className="text-emerald-400 text-xs font-bold">+${ad.price}</span>
+                          <span className="text-emerald-400 text-xs font-bold">+₦{ad.price.toLocaleString()}</span>
                         </div>
                         <span className="text-[10px] text-gray-500">{isChecked ? '✓ Added' : '+ Add'}</span>
                       </div>
@@ -367,16 +374,16 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
             </div>
           )}
 
-          {/* STEP 4: Review & Confirm */}
+          {/* STEP 4: Review & Payment Confirmation */}
           {step === 4 && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="rounded-xl bg-gray-900/80 p-4 border border-gray-800 space-y-3">
                 <div className="flex justify-between items-center border-b border-gray-800 pb-3">
                   <div>
                     <span className="text-lg font-bold text-white">{currentService.name}</span>
                     <p className="text-xs text-gray-400">{bedrooms} Bed • {bathrooms} Bath</p>
                   </div>
-                  <span className="text-2xl font-black text-emerald-400">${totalAmount}</span>
+                  <span className="text-2xl font-black text-emerald-400">₦{totalAmount.toLocaleString()}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-300">
@@ -401,13 +408,83 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
                         const ad = addons.find((a) => a.id === adId);
                         return (
                           <span key={adId} className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-emerald-300 font-medium">
-                            + {ad?.name} (${ad?.price})
+                            + {ad?.name} (₦{ad?.price?.toLocaleString()})
                           </span>
                         );
                       })}
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* OPAY Payment Account Details Box */}
+              <div className="rounded-xl bg-gradient-to-br from-emerald-950/40 via-gray-900 to-slate-900 border border-emerald-500/50 p-4 space-y-3 shadow-xl">
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-bold">
+                      💳
+                    </span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                      Payment Account (Bank Transfer)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Official Account
+                  </span>
+                </div>
+
+                <div className="bg-gray-950/80 rounded-xl p-3.5 border border-emerald-500/20 space-y-2.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400 font-medium">Bank Name:</span>
+                    <span className="font-extrabold text-white text-xs tracking-wider bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded-md border border-emerald-500/40">
+                      {PAYMENT_ACCOUNT_DETAILS.bankName}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400 font-medium">Account Number:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-emerald-400 text-base tracking-wider">
+                        {PAYMENT_ACCOUNT_DETAILS.accountNumber}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(PAYMENT_ACCOUNT_DETAILS.accountNumber);
+                          setCopiedAccount(true);
+                          setTimeout(() => setCopiedAccount(false), 2000);
+                        }}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 ${
+                          copiedAccount
+                            ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30'
+                            : 'bg-gray-800 text-emerald-400 hover:bg-gray-700 border border-emerald-500/30'
+                        }`}
+                      >
+                        {copiedAccount ? '✓ Copied' : '📋 Copy'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400 font-medium">Account Name:</span>
+                    <span className="font-bold text-white uppercase tracking-wide">
+                      {PAYMENT_ACCOUNT_DETAILS.accountName}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    Transfer Sender Name or Transaction Reference (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                    placeholder="e.g., OPAY / Session Ref or Sender Name"
+                    className="w-full rounded-xl bg-gray-900 border border-gray-700 px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
               <div>
@@ -429,7 +506,7 @@ export const BookingWizard: React.FC<BookingWizardProps> = ({ isOpen, onClose, o
         <div className="flex items-center justify-between border-t border-gray-800 bg-gray-900/80 px-6 py-4">
           <div>
             <span className="text-xs text-gray-400">Total Price:</span>
-            <div className="text-xl font-bold text-emerald-400">${totalAmount}</div>
+            <div className="text-xl font-bold text-emerald-400">₦{totalAmount.toLocaleString()}</div>
           </div>
 
           <div className="flex items-center gap-3">

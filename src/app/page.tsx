@@ -9,16 +9,35 @@ import { BookingWizard } from '@/components/BookingWizard';
 import { CustomerDashboard } from '@/components/CustomerDashboard';
 import { CleanerDashboard } from '@/components/CleanerDashboard';
 import { AdminDashboard } from '@/components/AdminDashboard';
+import { AuthModal } from '@/components/AuthModal';
+import { PAYMENT_ACCOUNT_DETAILS } from '@/lib/types';
 
 export default function Home() {
-  const { currentUser, setCurrentUser, services } = useApp();
+  const { currentUser, setCurrentUser, services, isCustomerLoggedIn } = useApp();
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'home' | 'services' | 'about' | 'dashboard'>('home');
   const [bookingSuccessId, setBookingSuccessId] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const handleBookingSuccess = (bookingId: string) => {
     setBookingSuccessId(bookingId);
     setActiveTab('dashboard');
+  };
+
+  const handleOpenBooking = () => {
+    if (!isCustomerLoggedIn) {
+      setShowAuthModal(true);
+    } else {
+      setIsBookingOpen(true);
+    }
+  };
+
+  const handleGoToDashboard = () => {
+    if (!isCustomerLoggedIn) {
+      setShowAuthModal(true);
+    } else {
+      setActiveTab('dashboard');
+    }
   };
 
   return (
@@ -27,6 +46,7 @@ export default function Home() {
       {/* Top Header */}
       <Navbar
         onOpenBooking={() => setIsBookingOpen(true)}
+        onOpenAuth={() => setShowAuthModal(true)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
@@ -50,30 +70,48 @@ export default function Home() {
         {/* DASHBOARD TAB VIEW */}
         {activeTab === 'dashboard' ? (
           <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-            
-            {/* View Switcher Banner */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-3">
-              <div className="flex items-center gap-3">
-                <span className="flex h-3 w-3 rounded-full bg-emerald-400 animate-ping" />
-                <div>
-                  <h3 className="text-sm font-bold text-white">Active Portal Mode: <span className="text-emerald-400 capitalize">{currentUser.role} View</span></h3>
-                  <p className="text-xs text-gray-400">Switch roles in the top menu to preview Customer, Cleaner, or Admin experiences.</p>
+
+            {/* Customer Portal — auth-gated */}
+            {isCustomerLoggedIn ? (
+              <>
+                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-3 w-3 rounded-full bg-emerald-400 animate-ping" />
+                    <div>
+                      <h3 className="text-sm font-bold text-white">My Customer Portal</h3>
+                      <p className="text-xs text-gray-400">View your private bookings, payment status, and history.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('home')}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-800 text-xs font-semibold text-gray-300 hover:text-white border border-slate-700"
+                  >
+                    ← Back to Main Website
+                  </button>
                 </div>
+                <CustomerDashboard onOpenBooking={() => setIsBookingOpen(true)} />
+              </>
+            ) : (
+              // Not logged in — show login prompt
+              <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center">
+                <div className="text-6xl">🔐</div>
+                <div>
+                  <h2 className="text-2xl font-black text-white mb-2">Login to Your Account</h2>
+                  <p className="text-gray-400 text-sm max-w-md">
+                    Your booking history is private. Please log in or create a free account to view your bookings.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black text-sm hover:brightness-110 shadow-lg shadow-emerald-500/30 transition-all"
+                >
+                  🔑 Log In / Create Account
+                </button>
+                <button onClick={() => setActiveTab('home')} className="text-xs text-gray-500 hover:text-white">
+                  ← Back to Main Website
+                </button>
               </div>
-
-              <button
-                onClick={() => setActiveTab('home')}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-800 text-xs font-semibold text-gray-300 hover:text-white border border-slate-700"
-              >
-                ← Back to Main Website
-              </button>
-            </div>
-
-            {currentUser.role === 'customer' && (
-              <CustomerDashboard onOpenBooking={() => setIsBookingOpen(true)} />
             )}
-            {currentUser.role === 'cleaner' && <CleanerDashboard />}
-            {currentUser.role === 'admin' && <AdminDashboard />}
           </div>
         ) : (
           /* MAIN CLEANING WEBSITE SHOWCASE */
@@ -142,8 +180,8 @@ export default function Home() {
                     {/* Customer Rating Proof */}
                     <div className="flex items-center gap-4 pt-4 border-t border-slate-800/80">
                       <div className="flex -space-x-2">
-                        <img className="h-10 w-10 rounded-full border-2 border-slate-900 object-cover" src="/elena_cleaner.png" alt="Customer" />
-                        <img className="h-10 w-10 rounded-full border-2 border-slate-900 object-cover" src="/marcus_cleaner.png" alt="Customer" />
+                        <img className="h-10 w-10 rounded-full border-2 border-slate-900 object-cover" src="/amina_cleaner.png" alt="Customer" />
+                        <img className="h-10 w-10 rounded-full border-2 border-slate-900 object-cover" src="/emeka_cleaner.png" alt="Customer" />
                         <img className="h-10 w-10 rounded-full border-2 border-slate-900 object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Customer" />
                       </div>
                       <div>
@@ -259,7 +297,7 @@ export default function Home() {
                     <div className="p-6 space-y-4">
                       <div className="flex justify-between items-start">
                         <h3 className="text-xl font-bold text-white">Deep House Clean</h3>
-                        <span className="text-2xl font-black text-emerald-400">$120</span>
+                        <span className="text-2xl font-black text-emerald-400">₦45,000</span>
                       </div>
 
                       <p className="text-xs text-gray-400 leading-relaxed">
@@ -297,7 +335,7 @@ export default function Home() {
                     <div className="p-6 space-y-4">
                       <div className="flex justify-between items-start">
                         <h3 className="text-xl font-bold text-white">Move In / Move Out</h3>
-                        <span className="text-2xl font-black text-emerald-400">$160</span>
+                        <span className="text-2xl font-black text-emerald-400">₦65,000</span>
                       </div>
 
                       <p className="text-xs text-gray-400 leading-relaxed">
@@ -335,7 +373,7 @@ export default function Home() {
                     <div className="p-6 space-y-4">
                       <div className="flex justify-between items-start">
                         <h3 className="text-xl font-bold text-white">Standard Maintenance</h3>
-                        <span className="text-2xl font-black text-emerald-400">$75</span>
+                        <span className="text-2xl font-black text-emerald-400">₦25,000</span>
                       </div>
 
                       <p className="text-xs text-gray-400 leading-relaxed">
@@ -486,21 +524,21 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
                   {
-                    name: 'Jessica Taylor',
-                    location: 'Austin, TX',
-                    review: 'SparkleMaids transformed my house before our family gathering! Elena was on time, super meticulous, and left my kitchen shining.',
+                    name: 'Chioma Adebayo',
+                    location: 'Lekki Phase 1, Lagos',
+                    review: 'SparkleMaids transformed my home before our family gathering! Amina was right on time, super meticulous, and left my kitchen sparkling.',
                     rating: 5,
                   },
                   {
-                    name: 'David Miller',
-                    location: 'Seattle, WA',
-                    review: 'The move-in clean was worth every single penny. My landlord was blown away and gave me 100% of my deposit back immediately.',
+                    name: 'Babatunde Adeleke',
+                    location: 'Victoria Island, Lagos',
+                    review: 'The move-in clean was worth every single Naira. My landlord was thoroughly impressed and released 100% of my caution deposit.',
                     rating: 5,
                   },
                   {
-                    name: 'Amanda Lin',
-                    location: 'Chicago, IL',
-                    review: 'I love being able to track when the cleaner arrives on the live portal. Top tier customer service and zero stress!',
+                    name: 'Dr. Ngozi Eze',
+                    location: 'Ikoyi, Lagos',
+                    review: 'I love being able to pay seamlessly via OPAY and track when Emeka arrives on the live portal. Top tier customer service and zero stress!',
                     rating: 5,
                   },
                 ].map((rev, idx) => (
@@ -527,6 +565,17 @@ export default function Home() {
         onClose={() => setIsBookingOpen(false)}
         onSuccess={handleBookingSuccess}
       />
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <AuthModal
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => {
+            setShowAuthModal(false);
+            setActiveTab('dashboard');
+          }}
+        />
+      )}
 
       {/* Footer */}
       <footer className="border-t border-slate-800 bg-slate-950 py-12 text-gray-400 text-xs">
@@ -563,8 +612,17 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 mt-8 pt-6 border-t border-slate-900 text-center text-gray-500">
-          © 2026 SparkleMaids Cleaning Services Inc. All rights reserved.
+        {/* Official Payment Account Banner in Footer */}
+        <div className="max-w-7xl mx-auto px-4 mt-8 pt-6 border-t border-slate-900 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs">
+          <div className="flex items-center gap-2 bg-slate-900/80 px-3.5 py-1.5 rounded-xl border border-slate-800">
+            <span className="text-emerald-400 font-bold">💳 Official Payment Account:</span>
+            <span className="text-white font-mono font-bold">{PAYMENT_ACCOUNT_DETAILS.bankName} - {PAYMENT_ACCOUNT_DETAILS.accountNumber}</span>
+            <span className="text-gray-400">({PAYMENT_ACCOUNT_DETAILS.accountName})</span>
+          </div>
+
+          <div className="text-gray-500">
+            © 2026 SparkleMaids Cleaning Services Inc. All rights reserved.
+          </div>
         </div>
       </footer>
 

@@ -2,16 +2,23 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useApp } from '@/context/AppContext';
 
 interface NavbarProps {
   onOpenBooking: () => void;
+  onOpenAuth: () => void;
   activeTab: 'home' | 'services' | 'about' | 'dashboard';
   setActiveTab: (tab: 'home' | 'services' | 'about' | 'dashboard') => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, activeTab, setActiveTab }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAuth, activeTab, setActiveTab }) => {
+  const { currentUser, isCustomerLoggedIn, customerLogout } = useApp();
 
   const handleNavClick = (tab: 'home' | 'services' | 'about' | 'dashboard') => {
+    if (tab === 'dashboard' && !isCustomerLoggedIn) {
+      onOpenAuth();
+      return;
+    }
     setActiveTab(tab);
     if (tab === 'home') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -56,7 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, activeTab, setAct
         </Link>
 
         {/* Center Public Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold">
+        <nav className="hidden lg:flex items-center gap-8 text-sm font-semibold">
           <button
             onClick={() => handleNavClick('home')}
             className={`transition-colors ${activeTab === 'home' ? 'text-emerald-400 font-bold border-b-2 border-emerald-400 pb-0.5' : 'text-gray-300 hover:text-white'}`}
@@ -75,28 +82,42 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, activeTab, setAct
           >
             Why Choose Us
           </button>
-          <button
-            onClick={() => handleNavClick('dashboard')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
-              activeTab === 'dashboard'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                : 'bg-slate-900 text-gray-300 border border-slate-800 hover:text-white'
-            }`}
-          >
-            <span>My Customer Portal</span>
-          </button>
         </nav>
 
-        {/* Right side: Public Actions & Protected Staff Link */}
+
+        {/* Right side: Auth State & Actions */}
         <div className="flex items-center gap-3">
           
-          {/* Staff Access Protected Gateway */}
-          <Link
-            href="/admin"
-            className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-purple-300 bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 transition-colors"
-          >
-            <span>🔒 Admin Portal</span>
-          </Link>
+          {isCustomerLoggedIn ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setActiveTab('dashboard'); }}
+                className="flex items-center gap-2 rounded-xl bg-slate-900 border border-emerald-500/30 px-3 py-1.5 hover:border-emerald-500/60 transition-all text-xs"
+              >
+                <img
+                  src={currentUser.avatar}
+                  alt={currentUser.name}
+                  className="h-6 w-6 rounded-full object-cover border border-emerald-400"
+                />
+                <span className="font-bold text-white max-w-[100px] truncate">{currentUser.name.split(' ')[0]}</span>
+              </button>
+              <button
+                onClick={customerLogout}
+                className="text-xs text-gray-400 hover:text-rose-300 px-2 py-1 transition-colors"
+                title="Log out"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              className="flex items-center gap-1.5 text-xs font-bold text-gray-300 hover:text-emerald-300 bg-slate-900 px-3.5 py-2 rounded-xl border border-slate-800 transition-colors"
+            >
+              <span>🔑</span>
+              <span>Client Login</span>
+            </button>
+          )}
 
           {/* Book Now CTA */}
           <button
@@ -115,3 +136,4 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, activeTab, setAct
     </header>
   );
 };
+

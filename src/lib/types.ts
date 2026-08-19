@@ -11,6 +11,18 @@ export interface UserProfile {
   completedJobsCount?: number;
 }
 
+// Stored customer account (for localStorage-based auth)
+export interface StoredCustomer {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string; // simple hash for demo
+  phone: string;
+  avatar: string;
+  createdAt: string;
+}
+
+
 export type BookingStatus = 'pending' | 'assigned' | 'en_route' | 'in_progress' | 'completed' | 'cancelled';
 
 export interface ServicePackage {
@@ -28,6 +40,12 @@ export interface ExtraAddon {
   price: number;
   iconName: string;
 }
+
+export const PAYMENT_ACCOUNT_DETAILS = {
+  accountNumber: '9036063469',
+  bankName: 'OPAY',
+  accountName: 'OSENI AMINAT DOLAPO',
+} as const;
 
 export interface Booking {
   id: string;
@@ -47,6 +65,10 @@ export interface Booking {
   cleanerId?: string;
   cleanerName?: string;
   notes?: string;
+  paymentMethod?: string;
+  paymentAccount?: string;
+  paymentReference?: string;
+  paymentStatus?: 'pending' | 'verified' | 'paid';
   createdAt: string;
   proofNote?: string;
   proofTime?: string;
@@ -68,3 +90,4 @@ export interface ConflictAlert {
   severity: 'warning' | 'critical';
   createdAt: string;
 }
+

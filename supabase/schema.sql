@@ -55,6 +55,10 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   cleaner_id TEXT,
   cleaner_name TEXT,
   notes TEXT,
+  payment_method TEXT,
+  payment_account TEXT,
+  payment_reference TEXT,
+  payment_status TEXT DEFAULT 'pending',
   proof_note TEXT,
   proof_time TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
